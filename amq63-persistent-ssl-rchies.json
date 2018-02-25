@@ -1,0 +1,397 @@
+{
+    "kind": "Template",
+    "apiVersion": "v1",
+    "metadata": {
+        "annotations": {
+            "iconClass": "icon-amq",
+            "tags": "messaging,amq,jboss",
+            "version": "1.4.8",
+            "openshift.io/display-name": "JBoss A-MQ 6.3 (with SSL)",
+            "openshift.io/provider-display-name": "Red Hat, Inc.",
+            "description": "An example JBoss A-MQ application. For more information about using this template, see https://github.com/jboss-openshift/application-templates.",
+            "template.openshift.io/long-description": "This template defines resources needed to develop Red Hat JBoss A-MQ 6.3 based application, including a deployment configuration, using persistence and secure communication using SSL.",
+            "template.openshift.io/documentation-url": "https://access.redhat.com/documentation/en/red-hat-jboss-amq/",
+            "template.openshift.io/support-url": "https://access.redhat.com"
+        },
+        "name": "amq63-persistent-ssl-rchies"
+    },
+    "labels": {
+        "template": "amq63-persistent-ssl-rchies",
+        "xpaas": "1.4.8"
+    },
+    "message": "A new persistent messaging service with SSL support has been created in your project. It will handle the protocol(s) \"${MQ_PROTOCOL}\". The username/password for accessing the service is ${MQ_USERNAME}/${MQ_PASSWORD}. Please be sure to create a secret named \"${AMQ_SECRET}\" containing the trust store and key store files (\"${AMQ_TRUSTSTORE}\" and \"${AMQ_KEYSTORE}\") used for serving secure content.",
+    "parameters": [
+        {
+            "displayName": "Application Name",
+            "description": "The name for the application.",
+            "name": "APPLICATION_NAME",
+            "value": "broker",
+            "required": true
+        }
+    ],
+    "objects": [
+        {
+            "kind": "Service",
+            "apiVersion": "v1",
+            "spec": {
+                "ports": [
+                    {
+                        "port": 61616,
+                        "targetPort": 61616
+                    }
+                ],
+                "selector": {
+                    "deploymentConfig": "${APPLICATION_NAME}-amq"
+                }
+            },
+            "metadata": {
+                "name": "${APPLICATION_NAME}-amq-tcp",
+                "labels": {
+                    "application": "${APPLICATION_NAME}"
+                },
+                "annotations": {
+                    "description": "The broker's OpenWire port."
+                }
+            }
+        },
+        {
+            "kind": "Service",
+            "apiVersion": "v1",
+            "spec": {
+                "ports": [
+                    {
+                        "port": 61617,
+                        "targetPort": 61617
+                    }
+                ],
+                "selector": {
+                    "deploymentConfig": "${APPLICATION_NAME}-amq"
+                }
+            },
+            "metadata": {
+                "name": "${APPLICATION_NAME}-amq-tcp-ssl",
+                "labels": {
+                    "application": "${APPLICATION_NAME}"
+                },
+                "annotations": {
+                    "description": "The broker's OpenWire (SSL) port.",
+                    "service.alpha.openshift.io/dependencies": "[{\"name\": \"${APPLICATION_NAME}-amq-tcp\", \"kind\": \"Service\"},{\"name\": \"${APPLICATION_NAME}-amq-amqp\", \"kind\": \"Service\"},{\"name\": \"${APPLICATION_NAME}-amq-mqtt\", \"kind\": \"Service\"},{\"name\": \"${APPLICATION_NAME}-amq-stomp\", \"kind\": \"Service\"},{\"name\": \"${APPLICATION_NAME}-amq-amqp-ssl\", \"kind\": \"Service\"},{\"name\": \"${APPLICATION_NAME}-amq-mqtt-ssl\", \"kind\": \"Service\"},{\"name\": \"${APPLICATION_NAME}-amq-stomp-ssl\", \"kind\": \"Service\"}]"
+                }
+            }
+        },
+        {
+            "kind": "Service",
+            "apiVersion": "v1",
+            "spec": {
+                "clusterIP": "None",
+                "ports": [
+                    {
+                        "name": "mesh",
+                        "port": 61616
+                    }
+                ],
+                "selector": {
+                    "deploymentConfig": "${APPLICATION_NAME}-amq"
+                }
+            },
+            "metadata": {
+                "name": "${APPLICATION_NAME}-amq-mesh",
+                "labels": {
+                    "application": "${APPLICATION_NAME}"
+                },
+                "annotations": {
+                    "service.alpha.kubernetes.io/tolerate-unready-endpoints": "true",
+                    "description": "Supports node discovery for mesh formation."
+                }
+            }
+        },
+        {
+            "kind": "ServiceAccount",
+            "apiVersion": "v1", 
+            "metadata": {
+                "name": "amq-service-account"
+            }
+        },
+        {
+            "kind": "DeploymentConfig",
+            "apiVersion": "v1",
+            "metadata": {
+                "name": "${APPLICATION_NAME}-amq",
+                "labels": {
+                    "application": "${APPLICATION_NAME}"
+                }
+            },
+            "spec": {
+                "strategy": {
+                    "type": "Rolling",
+                    "rollingParams": {
+                        "maxSurge": 0
+                    }
+                },
+                "triggers": [
+                    {
+                        "type": "ImageChange",
+                        "imageChangeParams": {
+                            "automatic": true,
+                            "containerNames": [
+                                "${APPLICATION_NAME}-amq"
+                            ],
+                            "from": {
+                                "kind": "ImageStreamTag",
+                                "namespace": "openshift",
+                                "name": "${APPLICATION_NAME}:latest"
+                            }
+                        }
+                    },
+                    {
+                        "type": "ConfigChange"
+                    }
+                ],
+                "replicas": 1,
+                "selector": {
+                    "deploymentConfig": "${APPLICATION_NAME}-amq"
+                },
+                "template": {
+                    "metadata": {
+                        "name": "${APPLICATION_NAME}-amq",
+                        "labels": {
+                            "deploymentConfig": "${APPLICATION_NAME}-amq",
+                            "application": "${APPLICATION_NAME}"
+                        }
+                    },
+                    "spec": {
+                        "terminationGracePeriodSeconds": 60,
+                        "containers": [
+                            {
+                                "name": "${APPLICATION_NAME}-amq",
+                                "image": "${APPLICATION_NAME}",
+                                "imagePullPolicy": "Always",
+                                "volumeMounts": [
+                                    {
+                                        "name": "broker-secret-volume",
+                                        "mountPath": "/etc/amq-secret-volume",
+                                        "readOnly": true
+                                    },
+                                    {
+                                        "mountPath": "/opt/amq/data",
+                                        "name": "${APPLICATION_NAME}-amq-pvol"
+                                    }
+                                ],
+                                "readinessProbe": {
+                                    "exec": {
+                                        "command": [
+                                            "/bin/bash",
+                                            "-c",
+                                            "/opt/amq/bin/readinessProbe.sh"
+                                        ]
+                                    }
+                                },
+                                "ports": [
+                                    {
+                                        "name": "jolokia",
+                                        "containerPort": 8778,
+                                        "protocol": "TCP"
+                                    },
+                                    {
+                                        "name": "tcp",
+                                        "containerPort": 61616,
+                                        "protocol": "TCP"
+                                    },
+                                    {
+                                        "name": "tcp-ssl",
+                                        "containerPort": 61617,
+                                        "protocol": "TCP"
+                                    }
+                                ],
+                                "env": [
+                                    {
+                                        "name": "AMQ_MESH_SERVICE_NAME",
+                                        "value": "${APPLICATION_NAME}-amq-mesh"
+                                    },
+                                    {
+                                        "name": "AMQ_MESH_SERVICE_NAMESPACE",
+                                        "valueFrom": {
+                                            "fieldRef": {
+                                                "fieldPath": "metadata.namespace"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "name": "AMQ_KEYSTORE_TRUSTSTORE_DIR",
+                                        "value": "/etc/amq-secret-volume"
+                                    },
+                                    {
+                                        "name": "AMQ_TRUSTSTORE",
+                                        "value": "${AMQ_TRUSTSTORE}"
+                                    },
+                                    {
+                                        "name": "AMQ_TRUSTSTORE_PASSWORD",
+                                        "value": "${AMQ_TRUSTSTORE_PASSWORD}"
+                                    },
+                                    {
+                                        "name": "AMQ_KEYSTORE",
+                                        "value": "${AMQ_KEYSTORE}"
+                                    },
+                                    {
+                                        "name": "AMQ_KEYSTORE_PASSWORD",
+                                        "value": "${AMQ_KEYSTORE_PASSWORD}"
+                                    },
+                                    {
+                                        "name": "AMQ_STORAGE_USAGE_LIMIT",
+                                        "value": "${AMQ_STORAGE_USAGE_LIMIT}"
+                                    },
+                                    {
+                                        "name": "AMQ_QUEUE_MEMORY_LIMIT",
+                                        "value": "${AMQ_QUEUE_MEMORY_LIMIT}"
+                                    }
+                                ]
+                            }
+                        ],
+                        "volumes": [
+                            {
+                                "name": "broker-secret-volume",
+                                "secret": {
+                                    "secretName": "${AMQ_SECRET}"
+                                }
+                            },
+                            {
+                                "name": "${APPLICATION_NAME}-amq-pvol",
+                                "persistentVolumeClaim": {
+                                    "claimName": "${APPLICATION_NAME}-amq-claim"
+                                }
+                            }
+                        ]
+                    }
+                }
+            }
+        },
+        {
+            "kind": "DeploymentConfig",
+            "apiVersion": "v1",
+            "metadata": {
+                "name": "${APPLICATION_NAME}-drainer",
+                "labels": {
+                    "application": "${APPLICATION_NAME}"
+                }
+            },
+            "spec": {
+                "strategy": {
+                    "type": "Recreate"
+                },
+                "triggers": [
+                    {
+                        "type": "ImageChange",
+                        "imageChangeParams": {
+                            "automatic": true,
+                            "containerNames": [
+                                "${APPLICATION_NAME}-drainer"
+                            ],
+                            "from": {
+                                "kind": "ImageStreamTag",
+                                "namespace": "openshift",
+                                "name": "${APPLICATION_NAME}:latest"
+                            }
+                        }
+                    },
+                    {
+                        "type": "ConfigChange"
+                    }
+                ],
+                "replicas": 1,
+                "selector": {
+                    "deploymentConfig": "${APPLICATION_NAME}-drainer"
+                },
+                "template": {
+                    "metadata": {
+                        "name": "${APPLICATION_NAME}-drainer",
+                        "labels": {
+                            "deploymentConfig": "${APPLICATION_NAME}-drainer",
+                            "application": "${APPLICATION_NAME}"
+                        }
+                    },
+                    "spec": {
+                        "terminationGracePeriodSeconds": 60,
+                        "containers": [
+                            {
+                                "name": "${APPLICATION_NAME}-drainer",
+                                "image": "jboss-amq-63",
+                                "command": [
+                                    "/opt/amq/bin/drain.sh"
+                                ],
+                                "imagePullPolicy": "Always",
+                                "volumeMounts": [
+                                    {
+                                        "mountPath": "/opt/amq/data",
+                                        "name": "${APPLICATION_NAME}-amq-pvol"
+                                    }
+                                ],
+                                "ports": [
+                                    {
+                                        "name": "jolokia",
+                                        "containerPort": 8778,
+                                        "protocol": "TCP"
+                                    },
+                                    {
+                                        "name": "tcp",
+                                        "containerPort": 61616,
+                                        "protocol": "TCP"
+                                    }
+                                ],
+                                "env": [
+                                    {
+                                        "name": "AMQ_USER",
+                                        "value": "${MQ_USERNAME}"
+                                    },
+                                    {
+                                        "name": "AMQ_PASSWORD",
+                                        "value": "${MQ_PASSWORD}"
+                                    },
+                                    {
+                                        "name": "AMQ_MESH_SERVICE_NAME",
+                                        "value": "${APPLICATION_NAME}-amq-mesh"
+                                    },
+                                    {
+                                        "name": "AMQ_MESH_SERVICE_NAMESPACE",
+                                        "valueFrom": {
+                                            "fieldRef": {
+                                                "fieldPath": "metadata.namespace"
+                                            }
+                                        }
+                                    }
+                                ]
+                            }
+                        ],
+                        "volumes": [
+                            {
+                                "name": "${APPLICATION_NAME}-amq-pvol",
+                                "persistentVolumeClaim": {
+                                    "claimName": "${APPLICATION_NAME}-amq-claim"
+                                }
+                            }
+                        ]
+                    }
+                }
+            }
+        },
+        {
+            "apiVersion": "v1",
+            "kind": "PersistentVolumeClaim",
+            "metadata": {
+                "name": "${APPLICATION_NAME}-amq-claim",
+                "labels": {
+                    "application": "${APPLICATION_NAME}"
+                }
+            },
+            "spec": {
+                "accessModes": [
+                    "ReadWriteMany"
+                ],
+                "resources": {
+                    "requests": {
+                        "storage": "10G"
+                    }
+                }
+            }
+        }
+    ]
+}
