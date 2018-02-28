@@ -111,20 +111,20 @@
         {
             "kind": "Route",
             "apiVersion": "v1",
-            "id": "${APLICACAO}-ssl",
+            "id": "${APPLICATION_NAME}-ssl",
             "metadata": {
-                "name": "${APLICACAO}",
+                "name": "${APPLICATION_NAME}",
                 "labels": {
-                    "application": "${APLICACAO}"
+                    "application": "${APPLICATION_NAME}"
                 },
                 "annotations": {
                     "description": "Rota SSL"
                 }
             },  
             "spec": {
-                "host": "xxxxxx.paas.rchies.br",
+                "host": "${APPLICATION_NAME}.paas.rchies.br",
                 "to": {
-                    "name": "${APLICACAO}",
+                    "name": "${APPLICATION_NAME}",
                     "weight": "100"
                 },
                 "port": {
