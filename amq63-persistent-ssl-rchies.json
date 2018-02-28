@@ -58,8 +58,10 @@
             "kind": "Service",
             "apiVersion": "v1",
             "spec": {
+                "clusterIP": "None",
                 "ports": [
                     {
+                        "name": "tcp-ssl",
                         "port": 61617,
                         "targetPort": 61617
                     }
@@ -87,7 +89,8 @@
                 "ports": [
                     {
                         "name": "mesh",
-                        "port": 61616
+                        "port": 61616,
+                        "targetPort": 61616
                     }
                 ],
                 "selector": {
@@ -102,6 +105,34 @@
                 "annotations": {
                     "service.alpha.kubernetes.io/tolerate-unready-endpoints": "true",
                     "description": "Supports node discovery for mesh formation."
+                }
+            }
+        },
+        {
+            "kind": "Route",
+            "apiVersion": "v1",
+            "id": "${APLICACAO}-ssl",
+            "metadata": {
+                "name": "${APLICACAO}",
+                "labels": {
+                    "application": "${APLICACAO}"
+                },
+                "annotations": {
+                    "description": "Rota SSL"
+                }
+            },  
+            "spec": {
+                "host": "${APLICACAO}.paas.rchies.br",
+                "to": {
+                    "name": "${APLICACAO}",
+                    "weight": "100"
+                },
+                "port": {
+                    "targetPort": "tcp-ssl"
+                },
+                "tls": {
+                    "termination": "Passthrough",
+                    "insecureEdgeTerminationPolicy": "None"
                 }
             }
         },
@@ -296,7 +327,6 @@
                         "type": "ConfigChange"
                     }
                 ],
-                "replicas": 1,
                 "selector": {
                     "deploymentConfig": "${APPLICATION_NAME}-drainer"
                 },
