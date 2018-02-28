@@ -124,7 +124,7 @@
             "spec": {
                 "host": "${APPLICATION_NAME}.paas.rchies.br",
                 "to": {
-                    "name": "${APPLICATION_NAME}",
+                    "name": "${APPLICATION_NAME}-amq-tcp-ssl",
                     "weight": "100"
                 },
                 "port": {
